@@ -1,6 +1,5 @@
 {
-    "MH12AB1234": "driver123",
-    "KA05CD5678": "pass5678",
-    "DL01EF9999": "secure99",
-    "MH14JR4583": "Dumbre@4491"
+    "MH12AB1234": {"driver": "Chirayu Dumbre", "password": "driver123"},
+    "KA05CD5678": {"driver": "Driver 2", "password": "pass5678"},
+    "DL01EF9999": {"driver": "Driver 3", "password": "secure99"}
 }

@@ -24,8 +24,27 @@ SNAP_DIR   = os.path.join(BASE, "..", "data", "snapshots")
 def load_users():
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE, encoding="utf-8") as f:
-            return json.load(f)
+            raw = json.load(f)
+        # Normalise: old format = {"VID": "password"}, new = {"VID": {"password":..,"driver":..}}
+        normalised = {}
+        for k, v in raw.items():
+            if isinstance(v, str):
+                normalised[k] = {"password": v, "driver": k}
+            else:
+                normalised[k] = v
+        return normalised
     return {}
+
+def get_password(user_entry):
+    """Safely get password from either string or dict entry."""
+    if isinstance(user_entry, dict):
+        return user_entry.get("password", "")
+    return str(user_entry)
+
+def get_driver(user_entry, default="Driver"):
+    if isinstance(user_entry, dict):
+        return user_entry.get("driver", default)
+    return default
 
 def save_users(u):
     with open(USERS_FILE, "w", encoding="utf-8") as f:
@@ -235,9 +254,9 @@ def login_page():
                                        placeholder="Enter password", key="si_pwd")
             if st.button("Access Dashboard", use_container_width=True, key="si_btn"):
                 users = load_users()
-                if vehicle_id in users and users[vehicle_id].get("password") == password:
+                if vehicle_id in users and get_password(users[vehicle_id]) == password:
                     st.session_state.update({"logged_in": True, "vehicle_id": vehicle_id,
-                                             "driver_name": users[vehicle_id].get("driver","Driver"),
+                                             "driver_name": get_driver(users[vehicle_id], vehicle_id),
                                              "active_tab": "monitor"})
                     set_active_vehicle(vehicle_id)
                     st.rerun()
