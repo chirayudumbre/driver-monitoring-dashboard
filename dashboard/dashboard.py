@@ -218,58 +218,69 @@ def inject_css():
 
 # ── Login Page ────────────────────────────────────────────────────────────────
 def login_page():
+    # Full page centered layout using CSS
+    st.markdown("""
+    <style>
+    /* Hide everything except login */
+    [data-testid="stAppViewContainer"] > .main {
+        display: flex; align-items: center; justify-content: center;
+        min-height: 100vh;
+    }
+    .block-container { padding-top: 0 !important; }
+    </style>
+    """, unsafe_allow_html=True)
+
     _, col, _ = st.columns([1, 1.4, 1])
     with col:
+        # Logo + title
         st.markdown("""
-        <div style="text-align:center;padding:40px 0 24px;">
+        <div style="text-align:center;padding:32px 0 20px;">
             <div style="display:inline-flex;align-items:center;justify-content:center;
-                 width:80px;height:80px;border-radius:20px;
-                 background:linear-gradient(135deg,#0ea5e9,#6366f1);margin-bottom:16px;
+                 width:72px;height:72px;border-radius:18px;
+                 background:linear-gradient(135deg,#0ea5e9,#6366f1);margin-bottom:14px;
                  box-shadow:0 0 40px rgba(56,189,248,0.3);">
-                <span style="font-size:2rem;">🛡️</span>
+                <span style="font-size:1.8rem;">🛡️</span>
             </div>
-            <h1 style="font-size:1.6rem;font-weight:800;margin:0;
+            <h2 style="font-size:1.5rem;font-weight:800;margin:0;
                 background:linear-gradient(135deg,#7dd3fc,#a5b4fc);
                 -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
-                AI Driver Monitoring System
-            </h1>
-            <p style="color:#94a3b8;font-size:0.75rem;margin-top:6px;
+                AI Driver Monitoring
+            </h2>
+            <p style="color:#64748b;font-size:0.72rem;margin-top:4px;
                text-transform:uppercase;letter-spacing:0.1em;">
                 Real-time Safety Intelligence
             </p>
         </div>
         """, unsafe_allow_html=True)
 
-    _, col, _ = st.columns([1, 1.4, 1])
-    with col:
-        tab = st.radio("Select", ["Sign In", "Register"], horizontal=True,
+        tab = st.radio("Mode", ["Sign In", "Register"], horizontal=True,
                        label_visibility="hidden", key="login_tab")
 
-        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-
         if tab == "Sign In":
-            vehicle_id = st.text_input("🚗  Vehicle Number", placeholder="e.g. MH12AB1234",
+            vehicle_id = st.text_input("Vehicle Number", placeholder="e.g. MH12AB1234",
                                        key="si_vid").strip().upper()
-            password   = st.text_input("🔒  Password", type="password",
+            password   = st.text_input("Password", type="password",
                                        placeholder="Enter password", key="si_pwd")
-            if st.button("Access Dashboard", use_container_width=True, key="si_btn"):
+            if st.button("🚀  Access Dashboard", use_container_width=True, key="si_btn"):
                 users = load_users()
                 if vehicle_id in users and get_password(users[vehicle_id]) == password:
-                    st.session_state.update({"logged_in": True, "vehicle_id": vehicle_id,
-                                             "driver_name": get_driver(users[vehicle_id], vehicle_id),
-                                             "active_tab": "monitor"})
+                    st.session_state.update({
+                        "logged_in":   True,
+                        "vehicle_id":  vehicle_id,
+                        "driver_name": get_driver(users[vehicle_id], vehicle_id),
+                        "active_tab":  "monitor"
+                    })
                     set_active_vehicle(vehicle_id)
                     st.rerun()
                 else:
                     st.error("Invalid vehicle number or password.")
-
         else:
-            vehicle_id  = st.text_input("🚗  Vehicle Number", placeholder="e.g. MH12AB1234",
+            vehicle_id  = st.text_input("Vehicle Number", placeholder="e.g. MH12AB1234",
                                         key="reg_vid").strip().upper()
-            driver_name = st.text_input("👤  Driver Name", placeholder="Full name", key="reg_name")
-            password    = st.text_input("🔒  Password", type="password",
+            driver_name = st.text_input("Driver Name", placeholder="Full name", key="reg_name")
+            password    = st.text_input("Password", type="password",
                                         placeholder="Create password", key="reg_pwd")
-            if st.button("Register Vehicle", use_container_width=True, key="reg_btn"):
+            if st.button("✅  Register Vehicle", use_container_width=True, key="reg_btn"):
                 if not vehicle_id or not driver_name or not password:
                     st.warning("Please fill all fields.")
                 elif len(password) < 4:
@@ -282,8 +293,6 @@ def login_page():
                         users[vehicle_id] = {"driver": driver_name, "password": password}
                         save_users(users)
                         st.success(f"✅ Registered! Sign in with {vehicle_id}")
-
-        st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Top Bar ───────────────────────────────────────────────────────────────────
 def top_bar(vid, driver_name):
@@ -908,14 +917,15 @@ def tab_emergency():
 def main():
     inject_css()
 
-    if "logged_in"   not in st.session_state: st.session_state["logged_in"]   = False
-    if "active_tab"  not in st.session_state: st.session_state["active_tab"]  = "monitor"
+    if "logged_in"  not in st.session_state: st.session_state["logged_in"]  = False
+    if "active_tab" not in st.session_state: st.session_state["active_tab"] = "monitor"
 
+    # ── Show login page only ──────────────────────────────────────────────────
     if not st.session_state["logged_in"]:
         login_page()
         st.stop()
-        return
 
+    # ── Dashboard (only reaches here if logged in) ────────────────────────────
     vid         = st.session_state["vehicle_id"]
     driver_name = st.session_state.get("driver_name", "Driver")
     active_tab  = st.session_state.get("active_tab", "monitor")
@@ -923,21 +933,18 @@ def main():
     # Top bar
     top_bar(vid, driver_name)
 
-    # Logout button in top right
-    _, _, logout_col = st.columns([4, 4, 1])
-    with logout_col:
-        if st.button("🚪 Exit", key="logout_btn"):
-            for k in ["logged_in","vehicle_id","driver_name","active_tab"]:
-                st.session_state.pop(k, None)
+    # Logout button — placed INSIDE top bar area via columns
+    col_space, col_exit = st.columns([10, 1])
+    with col_exit:
+        if st.button("🚪", key="logout_btn", help="Sign Out"):
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
             st.rerun()
-            st.stop()
 
     # Tab navigation
-    st.markdown('<div style="padding:8px 16px 0;background:rgba(15,23,42,0.4);">', unsafe_allow_html=True)
+    st.markdown('<div style="padding:4px 16px 0;background:rgba(15,23,42,0.4);">', unsafe_allow_html=True)
     tab_nav(active_tab)
     st.markdown('</div>', unsafe_allow_html=True)
-
-    # Load data
     df = load_alerts(vid)
     # Ensure timestamp is always proper datetime with no timezone
     if not df.empty and "timestamp" in df.columns:
