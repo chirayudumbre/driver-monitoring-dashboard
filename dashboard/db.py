@@ -14,6 +14,20 @@ load_dotenv()
 from utils.supabase_client import fetch_alerts, test_connection
 
 
+def _fix_timestamps(df: pd.DataFrame) -> pd.DataFrame:
+    """Robustly convert timestamp column to naive datetime, drop bad rows."""
+    if "timestamp" not in df.columns:
+        return df
+    # Convert to datetime, handle both ISO strings with/without timezone
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+    df = df.dropna(subset=["timestamp"])
+    if df.empty:
+        return df
+    # Remove timezone info so .dt.date works everywhere
+    df["timestamp"] = df["timestamp"].dt.tz_convert(None)
+    return df
+
+
 def load_alerts(vehicle_id: str = None) -> pd.DataFrame:
     """Load alerts from Supabase, fall back to local CSV."""
 
@@ -21,9 +35,9 @@ def load_alerts(vehicle_id: str = None) -> pd.DataFrame:
     rows = fetch_alerts(vehicle_id=vehicle_id, limit=5000)
     if rows:
         df = pd.DataFrame(rows)
-        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
-        df["timestamp"] = df["timestamp"].dt.tz_localize(None)  # remove timezone
-        df = df.dropna(subset=["timestamp"])
+        df = _fix_timestamps(df)
+        if df.empty:
+            return pd.DataFrame(columns=["timestamp","alert_type","vehicle_id","snapshot"])
         df = df.sort_values("timestamp", ascending=False).reset_index(drop=True)
         if "snapshot_url" in df.columns and "snapshot" not in df.columns:
             df = df.rename(columns={"snapshot_url": "snapshot"})
@@ -60,11 +74,9 @@ def load_alerts(vehicle_id: str = None) -> pd.DataFrame:
         return pd.DataFrame(columns=["timestamp", "alert_type", "vehicle_id", "snapshot"])
 
     df = pd.DataFrame(data)
-    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=False)
-    df = df.dropna(subset=["timestamp"])
-    # ensure no timezone info
-    if hasattr(df["timestamp"].dtype, "tz") and df["timestamp"].dtype.tz is not None:
-        df["timestamp"] = df["timestamp"].dt.tz_localize(None)
+    df = _fix_timestamps(df)
+    if df.empty:
+        return pd.DataFrame(columns=["timestamp","alert_type","vehicle_id","snapshot"])
     df = df.sort_values("timestamp", ascending=False).reset_index(drop=True)
 
     if vehicle_id:
