@@ -572,7 +572,33 @@ def tab_snapshots(df):
         d_to = st.date_input("To", value=datetime.now().date(),
                              key="snap_to", label_visibility="hidden")
 
-    # Try log-linked snapshots
+    # ── Cloud snapshots (Supabase Storage URLs) ───────────────────────────────
+    cloud = df[df["snapshot"].astype(str).str.startswith("http")].copy()
+    if ft != "ALL":
+        cloud = cloud[cloud["alert_type"] == ft]
+    try:
+        ts_c = pd.to_datetime(cloud["timestamp"], errors="coerce", utc=True).dt.tz_convert(None)
+        cloud = cloud[(ts_c.dt.date >= d_from) & (ts_c.dt.date <= d_to)]
+    except Exception:
+        pass
+
+    if not cloud.empty:
+        st.markdown(f'<div style="color:#94a3b8;font-size:0.82rem;margin-bottom:12px;">{len(cloud)} snapshots</div>', unsafe_allow_html=True)
+        cols = st.columns(3)
+        for i, (_, row) in enumerate(cloud.head(30).iterrows()):
+            url   = str(row["snapshot"])
+            atype = str(row["alert_type"])
+            col   = color_for(atype)
+            try:
+                ts = row["timestamp"].strftime("%d %b  %H:%M:%S")
+            except Exception:
+                ts = str(row["timestamp"])[:19]
+            with cols[i % 3]:
+                st.image(url, use_container_width=True)
+                st.markdown(f'<div style="text-align:center;margin-bottom:12px;">{badge(atype.replace("_"," "),col)}<div style="color:#475569;font-size:0.65rem;margin-top:3px;">{ts}</div></div>', unsafe_allow_html=True)
+        return
+
+    # ── Local snapshots fallback ──────────────────────────────────────────────
     snaps = df[df["snapshot"].astype(str).str.strip() != ""].copy()
     try:
         ts2 = pd.to_datetime(snaps["timestamp"], errors="coerce", utc=True).dt.tz_convert(None)
