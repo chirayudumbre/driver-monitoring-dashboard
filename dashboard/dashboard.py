@@ -62,12 +62,10 @@ def inject_css():
     [data-testid="stAppViewBlockContainer"] { padding-top: 0 !important; }
     div[data-testid="stVerticalBlock"] > div:first-child { padding-top: 0 !important; }
     .main > div { padding-top: 0 !important; }
-    /* Login page full viewport */
+    /* Login page */
     .login-outer {
-        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
         display: flex; align-items: center; justify-content: center;
-        background: #020617; z-index: 999; overflow-y: auto;
-        padding: 20px;
+        min-height: 80vh; padding: 20px;
     }
     [data-testid="stSidebar"] { display: none; }
     section[data-testid="stSidebarContent"] { display: none; }
@@ -201,10 +199,10 @@ def inject_css():
 
 # ── Login Page ────────────────────────────────────────────────────────────────
 def login_page():
-    st.markdown("""
-    <div class="login-outer grid-bg">
-    <div style="width:100%;max-width:420px;">
-        <div style="text-align:center;margin-bottom:32px;">
+    _, col, _ = st.columns([1, 1.4, 1])
+    with col:
+        st.markdown("""
+        <div style="text-align:center;padding:40px 0 24px;">
             <div style="display:inline-flex;align-items:center;justify-content:center;
                  width:80px;height:80px;border-radius:20px;
                  background:linear-gradient(135deg,#0ea5e9,#6366f1);margin-bottom:16px;
@@ -221,11 +219,9 @@ def login_page():
                 Real-time Safety Intelligence
             </p>
         </div>
-    </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
-    _, col, _ = st.columns([1, 1.2, 1])
+    _, col, _ = st.columns([1, 1.4, 1])
     with col:
         tab = st.radio("", ["Sign In", "Register"], horizontal=True,
                        label_visibility="hidden", key="login_tab")
