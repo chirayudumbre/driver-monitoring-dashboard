@@ -504,6 +504,52 @@ def tab_monitor(df, vid):
             </div>
             """, unsafe_allow_html=True)
 
+# ── Logs Tab ──────────────────────────────────────────────────────────────────
+def tab_logs(df):
+    st.markdown('<div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">System Logs</div>', unsafe_allow_html=True)
+
+    fc1, fc2, fc3 = st.columns([2,1,1])
+    with fc1:
+        ft = st.selectbox("Type", ["ALL","DROWSINESS","DISTRACTION","MOBILE_USAGE"], label_visibility="hidden", key="log_ft")
+    with fc2:
+        min_d = df["timestamp"].min().date() if not df.empty else datetime.now().date()-timedelta(days=30)
+        d_from = st.date_input("From", value=min_d, key="log_from", label_visibility="hidden")
+    with fc3:
+        d_to = st.date_input("To", value=datetime.now().date(), key="log_to", label_visibility="hidden")
+
+    vdf = df.copy()
+    if ft != "ALL":
+        vdf = vdf[vdf["alert_type"]==ft]
+    vdf = vdf[(vdf["timestamp"].dt.date >= d_from) & (vdf["timestamp"].dt.date <= d_to)]
+
+    c1,c2,c3,c4 = st.columns(4)
+    c1.metric("Total", len(vdf))
+    c2.metric("😴 Drowsy",  len(vdf[vdf["alert_type"]=="DROWSINESS"]))
+    c3.metric("👀 Distract",len(vdf[vdf["alert_type"]=="DISTRACTION"]))
+    c4.metric("📱 Mobile",  len(vdf[vdf["alert_type"]=="MOBILE_USAGE"]))
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    if vdf.empty:
+        st.markdown('<div class="glass-card" style="text-align:center;color:#475569;padding:40px;"><div style="font-size:2rem;margin-bottom:8px;">📋</div>No records found.</div>', unsafe_allow_html=True)
+        return
+
+    st.markdown('<div style="background:rgba(15,23,42,0.8);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;"><div style="display:grid;grid-template-columns:2fr 1.5fr 1fr;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);"><span style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Timestamp</span><span style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Alert Type</span><span style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Vehicle</span></div>', unsafe_allow_html=True)
+
+    for _, row in vdf.head(200).iterrows():
+        atype = str(row["alert_type"])
+        col   = color_for(atype)
+        ts    = row["timestamp"].strftime("%Y-%m-%d %H:%M:%S")
+        vid_r = str(row.get("vehicle_id","—"))
+        st.markdown(f'<div class="log-row" style="display:grid;grid-template-columns:2fr 1.5fr 1fr;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="font-size:0.75rem;color:#94a3b8;font-family:\'JetBrains Mono\',monospace;">{ts}</span><span>{badge(atype.replace("_"," "), col)}</span><span style="font-size:0.75rem;color:#64748b;">{vid_r}</span></div>', unsafe_allow_html=True)
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    csv = vdf[["timestamp","alert_type","vehicle_id"]].copy()
+    csv["timestamp"] = csv["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
+    st.download_button("⬇️ Export CSV", csv.to_csv(index=False).encode(), "alert_log.csv", "text/csv")
+
+
 # ── Snapshots Tab ─────────────────────────────────────────────────────────────
 def tab_snapshots(df):
     st.markdown("""
