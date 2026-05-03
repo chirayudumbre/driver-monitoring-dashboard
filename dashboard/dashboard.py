@@ -520,7 +520,11 @@ def tab_logs(df):
     vdf = df.copy()
     if ft != "ALL":
         vdf = vdf[vdf["alert_type"]==ft]
-    vdf = vdf[(vdf["timestamp"].dt.date >= d_from) & (vdf["timestamp"].dt.date <= d_to)]
+    try:
+        ts = pd.to_datetime(vdf["timestamp"], errors="coerce", utc=True).dt.tz_convert(None)
+        vdf = vdf[(ts.dt.date >= d_from) & (ts.dt.date <= d_to)]
+    except Exception:
+        pass
 
     c1,c2,c3,c4 = st.columns(4)
     c1.metric("Total", len(vdf))
@@ -570,7 +574,11 @@ def tab_snapshots(df):
 
     # Try log-linked snapshots
     snaps = df[df["snapshot"].astype(str).str.strip() != ""].copy()
-    snaps = snaps[(snaps["timestamp"].dt.date >= d_from) & (snaps["timestamp"].dt.date <= d_to)]
+    try:
+        ts2 = pd.to_datetime(snaps["timestamp"], errors="coerce", utc=True).dt.tz_convert(None)
+        snaps = snaps[(ts2.dt.date >= d_from) & (ts2.dt.date <= d_to)]
+    except Exception:
+        pass
     if ft != "ALL":
         snaps = snaps[snaps["alert_type"]==ft]
     snaps = snaps[snaps["snapshot"].apply(lambda p: os.path.exists(str(p)))]
