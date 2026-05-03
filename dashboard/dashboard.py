@@ -242,7 +242,7 @@ def login_page():
 
     _, col, _ = st.columns([1, 1.4, 1])
     with col:
-        tab = st.radio("", ["Sign In", "Register"], horizontal=True,
+        tab = st.radio("Select", ["Sign In", "Register"], horizontal=True,
                        label_visibility="hidden", key="login_tab")
 
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
@@ -905,6 +905,16 @@ def main():
 
     # Load data
     df = load_alerts(vid)
+    # Ensure timestamp is always proper datetime with no timezone
+    if not df.empty and "timestamp" in df.columns:
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+        df["timestamp"] = df["timestamp"].dt.tz_convert(None)
+        df = df.dropna(subset=["timestamp"])
+        df = df.sort_values("timestamp", ascending=False).reset_index(drop=True)
+    if "snapshot" not in df.columns:
+        df["snapshot"] = ""
+    if "vehicle_id" not in df.columns:
+        df["vehicle_id"] = vid
 
     # Content
     st.markdown('<div style="padding:16px;">', unsafe_allow_html=True)
