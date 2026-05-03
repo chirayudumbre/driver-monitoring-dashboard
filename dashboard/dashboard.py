@@ -57,6 +57,18 @@ def inject_css():
     html, body, [class*="css"] { font-family: 'Outfit', sans-serif !important; }
     #MainMenu, footer, header { visibility: hidden; }
     .block-container { padding: 0 !important; max-width: 100% !important; }
+    /* Remove Streamlit top whitespace */
+    [data-testid="stAppViewContainer"] { padding-top: 0 !important; }
+    [data-testid="stAppViewBlockContainer"] { padding-top: 0 !important; }
+    div[data-testid="stVerticalBlock"] > div:first-child { padding-top: 0 !important; }
+    .main > div { padding-top: 0 !important; }
+    /* Login page full viewport */
+    .login-outer {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        display: flex; align-items: center; justify-content: center;
+        background: #020617; z-index: 999; overflow-y: auto;
+        padding: 20px;
+    }
     [data-testid="stSidebar"] { display: none; }
     section[data-testid="stSidebarContent"] { display: none; }
 
@@ -189,9 +201,8 @@ def inject_css():
 
 # ── Login Page ────────────────────────────────────────────────────────────────
 def login_page():
-    st.markdown('<div class="grid-bg">', unsafe_allow_html=True)
     st.markdown("""
-    <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;">
+    <div class="login-outer grid-bg">
     <div style="width:100%;max-width:420px;">
         <div style="text-align:center;margin-bottom:32px;">
             <div style="display:inline-flex;align-items:center;justify-content:center;
@@ -258,7 +269,6 @@ def login_page():
                         st.success(f"✅ Registered! Sign in with {vehicle_id}")
 
         st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ── Top Bar ───────────────────────────────────────────────────────────────────
 def top_bar(vid, driver_name):
