@@ -833,6 +833,7 @@ def main():
 
     if not st.session_state["logged_in"]:
         login_page()
+        st.stop()
         return
 
     vid         = st.session_state["vehicle_id"]
@@ -849,6 +850,7 @@ def main():
             for k in ["logged_in","vehicle_id","driver_name","active_tab"]:
                 st.session_state.pop(k, None)
             st.rerun()
+            st.stop()
 
     # Tab navigation
     st.markdown('<div style="padding:8px 16px 0;background:rgba(15,23,42,0.4);">', unsafe_allow_html=True)
