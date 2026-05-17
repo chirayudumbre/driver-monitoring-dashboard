@@ -3,4 +3,5 @@ pandas
 Pillow
 requests
 python-dotenv
+plotly==5.22.0
 supabase==2.3.4

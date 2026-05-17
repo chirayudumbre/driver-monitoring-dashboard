@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import os, json, time, sys
 from dotenv import load_dotenv
 load_dotenv()
@@ -23,8 +25,26 @@ def badge(label, color):
             f'padding:2px 10px;border-radius:20px;font-size:0.7rem;font-weight:700;'
             f'text-transform:uppercase;letter-spacing:0.05em;">{label}</span>')
 
-def render_dashboard():
-    pass  # placeholder - will be replaced
+def load_registered_vehicles():
+    """Return list of registered vehicle IDs from users.json."""
+    users_file = os.path.join(BASE, "users.json")
+    if os.path.exists(users_file):
+        try:
+            with open(users_file, encoding="utf-8") as f:
+                return list(json.load(f).keys())
+        except Exception:
+            pass
+    return []
+
+def get_latest_snapshot():
+    """Return the most recent snapshot image path, or None."""
+    if not os.path.exists(SNAP_DIR):
+        return None
+    files = sorted(
+        [f for f in os.listdir(SNAP_DIR) if f.lower().endswith(".jpg")],
+        reverse=True
+    )
+    return os.path.join(SNAP_DIR, files[0]) if files else None
 
 # ── CSS ───────────────────────────────────────────────────────────────────────
 def inject_css():
@@ -35,147 +55,42 @@ def inject_css():
     html, body, [class*="css"] { font-family: 'Outfit', sans-serif !important; }
     #MainMenu, footer, header { visibility: hidden; }
     .block-container { padding: 0 !important; max-width: 100% !important; }
-    /* Remove Streamlit top whitespace */
     [data-testid="stAppViewContainer"] { padding-top: 0 !important; }
     [data-testid="stAppViewBlockContainer"] { padding-top: 0 !important; }
     div[data-testid="stVerticalBlock"] > div:first-child { padding-top: 0 !important; }
     .main > div { padding-top: 0 !important; }
-    /* Login page */
-    .login-outer {
-        display: flex; align-items: center; justify-content: center;
-        min-height: 80vh; padding: 20px;
-    }
+    .login-outer { display:flex;align-items:center;justify-content:center;min-height:80vh;padding:20px; }
     [data-testid="stSidebar"] { display: none; }
     section[data-testid="stSidebarContent"] { display: none; }
-
     body { background: #020617; color: #e2e8f0; }
-
     .grid-bg {
         background-image: linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
                           linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
-        background-size: 40px 40px;
-        min-height: 100vh;
+        background-size: 40px 40px; min-height: 100vh;
     }
-    .glass {
-        background: rgba(15,23,42,0.6);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 16px;
-    }
-    .glass-card {
-        background: rgba(15,23,42,0.6);
-        backdrop-filter: blur(20px);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 16px;
-    }
-    .stat-card {
-        background: rgba(15,23,42,0.6);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 16px;
-        padding: 20px;
-        position: relative;
-        overflow: hidden;
-    }
-    .tab-btn {
-        display: inline-flex; align-items: center; gap: 6px;
-        padding: 8px 16px; border-radius: 8px 8px 0 0;
-        font-size: 0.75rem; font-weight: 600; cursor: pointer;
-        border: none; transition: all 0.2s;
-        white-space: nowrap;
-    }
-    .tab-active {
-        background: rgba(56,189,248,0.15);
-        color: #38bdf8;
-        border-bottom: 2px solid #38bdf8;
-    }
-    .tab-inactive {
-        background: transparent;
-        color: #94a3b8;
-        border-bottom: 2px solid transparent;
-    }
-    .tab-inactive:hover { color: #e2e8f0; }
-
+    .glass { background:rgba(15,23,42,0.6);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:16px; }
+    .glass-card { background:rgba(15,23,42,0.6);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:20px;margin-bottom:16px; }
+    .stat-card { background:rgba(15,23,42,0.6);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:20px;position:relative;overflow:hidden; }
     .log-row { transition: background 0.2s; }
     .log-row:hover { background: rgba(255,255,255,0.04); }
-
     .mono { font-family: 'JetBrains Mono', monospace; }
-
-    .btn-primary {
-        background: linear-gradient(135deg, #0ea5e9, #6366f1);
-        color: white; border: none; border-radius: 12px;
-        padding: 12px 24px; font-weight: 600; font-size: 0.875rem;
-        cursor: pointer; width: 100%; transition: all 0.3s;
-    }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(14,165,233,0.4); }
-
     .snapshot-card { transition: all 0.3s ease; border-radius: 12px; overflow: hidden; }
     .snapshot-card:hover { transform: scale(1.03); }
-
-    .alert-item {
-        background: rgba(15,23,42,0.6);
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 12px;
-        padding: 14px 16px;
-        margin-bottom: 10px;
-        display: flex; align-items: flex-start; gap: 12px;
-    }
-    .sos-btn {
-        background: linear-gradient(135deg, #dc2626, #b91c1c);
-        color: white; border: none; border-radius: 12px;
-        padding: 16px; font-weight: 700; font-size: 1.1rem;
-        cursor: pointer; width: 100%; transition: all 0.3s;
-        display: flex; align-items: center; justify-content: center; gap: 8px;
-    }
+    .sos-btn { background:linear-gradient(135deg,#dc2626,#b91c1c);color:white;border:none;border-radius:12px;padding:16px;font-weight:700;font-size:1.1rem;cursor:pointer;width:100%;transition:all 0.3s;display:flex;align-items:center;justify-content:center;gap:8px; }
     .sos-btn:hover { box-shadow: 0 8px 30px rgba(220,38,38,0.4); }
-
-    .score-ring { position: relative; display: inline-block; }
-
-    /* Mobile responsive */
-    @media (max-width: 768px) {
-        .block-container { padding: 0 !important; }
-        .stat-grid { grid-template-columns: 1fr !important; }
-    }
-
-    /* Scrollbar */
+    @media (max-width: 768px) { .block-container { padding: 0 !important; } .stat-grid { grid-template-columns: 1fr !important; } }
     ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: rgba(15,23,42,0.3); }
     ::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.4); border-radius: 2px; }
-
-    /* Streamlit widget overrides */
-    .stTextInput input {
-        background: rgba(30,41,59,0.7) !important;
-        border: 1px solid rgba(100,116,139,0.4) !important;
-        border-radius: 12px !important;
-        color: white !important;
-        font-family: 'Outfit', sans-serif !important;
-    }
-    .stTextInput input:focus {
-        border-color: #38bdf8 !important;
-        box-shadow: 0 0 0 2px rgba(56,189,248,0.2) !important;
-    }
-    .stButton > button {
-        background: linear-gradient(135deg, #0ea5e9, #6366f1) !important;
-        color: white !important; border: none !important;
-        border-radius: 12px !important; font-weight: 600 !important;
-        font-family: 'Outfit', sans-serif !important;
-        transition: all 0.3s !important;
-    }
-    .stButton > button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 30px rgba(14,165,233,0.4) !important;
-    }
-    div[data-testid="metric-container"] {
-        background: rgba(15,23,42,0.6) !important;
-        border: 1px solid rgba(255,255,255,0.08) !important;
-        border-radius: 12px !important;
-        padding: 16px !important;
-    }
+    .stTextInput input { background:rgba(30,41,59,0.7)!important;border:1px solid rgba(100,116,139,0.4)!important;border-radius:12px!important;color:white!important;font-family:'Outfit',sans-serif!important; }
+    .stTextInput input:focus { border-color:#38bdf8!important;box-shadow:0 0 0 2px rgba(56,189,248,0.2)!important; }
+    .stButton > button { background:linear-gradient(135deg,#0ea5e9,#6366f1)!important;color:white!important;border:none!important;border-radius:12px!important;font-weight:600!important;font-family:'Outfit',sans-serif!important;transition:all 0.3s!important; }
+    .stButton > button:hover { transform:translateY(-2px)!important;box-shadow:0 8px 30px rgba(14,165,233,0.4)!important; }
+    div[data-testid="metric-container"] { background:rgba(15,23,42,0.6)!important;border:1px solid rgba(255,255,255,0.08)!important;border-radius:12px!important;padding:16px!important; }
     </style>
     """, unsafe_allow_html=True)
 
-# ── Top Bar ───────────────────────────────────────────────────────────────────
+# ── Top Bar (FIX #2 & #3: logout inside bar + vehicle selector) ───────────────
 def top_bar(vid, driver_name):
     cloud = is_cloud_connected()
     cloud_html = (f'<span style="color:#10b981;">☁️ Cloud</span>' if cloud
@@ -183,7 +98,7 @@ def top_bar(vid, driver_name):
     st.markdown(f"""
     <div style="background:rgba(15,23,42,0.8);backdrop-filter:blur(20px);
          border-bottom:1px solid rgba(255,255,255,0.08);
-         padding:12px 20px;display:flex;align-items:center;
+         padding:10px 20px;display:flex;align-items:center;
          justify-content:space-between;position:sticky;top:0;z-index:100;">
         <div style="display:flex;align-items:center;gap:12px;">
             <div style="width:36px;height:36px;border-radius:10px;
@@ -196,19 +111,49 @@ def top_bar(vid, driver_name):
                 </div>
             </div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;" id="topbar-right">
             <div style="display:flex;align-items:center;gap:6px;padding:6px 12px;
                  border-radius:8px;background:rgba(16,185,129,0.15);
                  border:1px solid rgba(16,185,129,0.3);">
-                <span style="width:8px;height:8px;border-radius:50%;
-                      background:#10b981;display:inline-block;
-                      animation:pulse 2s infinite;"></span>
+                <span style="width:8px;height:8px;border-radius:50%;background:#10b981;
+                      display:inline-block;animation:pulse 2s infinite;"></span>
                 <span style="color:#10b981;font-size:0.7rem;font-weight:600;">LIVE</span>
             </div>
         </div>
     </div>
     <style>@keyframes pulse{{0%,100%{{opacity:1}}50%{{opacity:0.5}}}}</style>
     """, unsafe_allow_html=True)
+
+    # Controls row: refresh toggle + vehicle selector + logout — all in one clean row
+    ctrl1, ctrl2, ctrl3, ctrl4 = st.columns([3, 2, 2, 1])
+
+    with ctrl1:
+        # FIX #1: Auto-refresh toggle
+        live = st.toggle("🔄 Live Refresh", value=st.session_state.get("live_refresh", True), key="live_refresh_toggle")
+        st.session_state["live_refresh"] = live
+
+    with ctrl2:
+        # FIX #3: Vehicle selector
+        vehicles = load_registered_vehicles()
+        if vehicles:
+            current_idx = vehicles.index(vid) if vid in vehicles else 0
+            selected_v = st.selectbox("Vehicle", vehicles, index=current_idx,
+                                      key="vehicle_selector", label_visibility="collapsed")
+            if selected_v != vid:
+                st.session_state["vehicle_id"] = selected_v
+                set_active_vehicle(selected_v)
+                st.rerun()
+
+    with ctrl3:
+        st.markdown(f'<div style="color:#475569;font-size:0.72rem;padding-top:8px;">👤 {driver_name}</div>',
+                    unsafe_allow_html=True)
+
+    with ctrl4:
+        # FIX #2: Logout inside top bar area
+        if st.button("🚪 Out", key="logout_btn", help="Sign Out", use_container_width=True):
+            for k in list(st.session_state.keys()):
+                del st.session_state[k]
+            st.rerun()
 
 # ── Tab Navigation ────────────────────────────────────────────────────────────
 def tab_nav(active):
@@ -223,26 +168,21 @@ def tab_nav(active):
     cols = st.columns(len(tabs))
     for i, (key, icon, label) in enumerate(tabs):
         with cols[i]:
-            is_active = active == key
-            style = ("background:rgba(56,189,248,0.15);color:#38bdf8;"
-                     "border-bottom:2px solid #38bdf8;" if is_active else
-                     "background:transparent;color:#94a3b8;border-bottom:2px solid transparent;")
             if st.button(f"{icon} {label}", key=f"tab_{key}", use_container_width=True):
                 st.session_state["active_tab"] = key
                 st.rerun()
 
 # ── Monitor Tab ───────────────────────────────────────────────────────────────
 def tab_monitor(df, vid):
-    drowsy  = len(df[df["alert_type"]=="DROWSINESS"])
-    phone   = len(df[df["alert_type"]=="MOBILE_USAGE"])
-    distract= len(df[df["alert_type"]=="DISTRACTION"])
-    total   = len(df)
-    score   = max(0, 100 - (drowsy*8 + phone*12 + distract*5))
-    risk    = "🟢 Low" if score>70 else "🟡 Medium" if score>40 else "🔴 High"
-    risk_c  = "#10b981" if score>70 else "#f59e0b" if score>40 else "#f43f5e"
-    maxv    = max(total, 1)
+    drowsy   = len(df[df["alert_type"]=="DROWSINESS"])
+    phone    = len(df[df["alert_type"]=="MOBILE_USAGE"])
+    distract = len(df[df["alert_type"]=="DISTRACTION"])
+    total    = len(df)
+    score    = max(0, 100 - (drowsy*8 + phone*12 + distract*5))
+    risk     = "🟢 Low" if score>70 else "🟡 Medium" if score>40 else "🔴 High"
+    risk_c   = "#10b981" if score>70 else "#f59e0b" if score>40 else "#f43f5e"
+    maxv     = max(total, 1)
 
-    # ── Stat cards ────────────────────────────────────────────────────────────
     c1, c2, c3 = st.columns(3)
     for col, label, val, color, icon in [
         (c1, "Drowsiness",  drowsy,   "#f59e0b", "😴"),
@@ -272,15 +212,13 @@ def tab_monitor(df, vid):
                          background:linear-gradient(90deg,{color},{color}88);
                          border-radius:3px;transition:width 1s ease;"></div>
                 </div>
-                <div style="font-size:0.65rem;color:#475569;margin-top:6px;">
-                    Detections in session
-                </div>
+                <div style="font-size:0.65rem;color:#475569;margin-top:6px;">Detections in session</div>
             </div>
             """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Camera feed + Safety score ────────────────────────────────────────────
+    # ── Camera feed (FIX #5: show latest snapshot) + Safety score ─────────────
     col_feed, col_score = st.columns([2, 1])
 
     with col_feed:
@@ -289,10 +227,13 @@ def tab_monitor(df, vid):
         feed_status = "Monitoring Active"
         feed_color  = "#38bdf8"
         if last_alert is not None:
-            mins_ago = (datetime.now() - last_alert["timestamp"].to_pydatetime().replace(tzinfo=None)).seconds // 60
-            if mins_ago < 5:
-                feed_status = f"⚠ {last_alert['alert_type'].replace('_',' ')} Detected"
-                feed_color  = color_for(str(last_alert["alert_type"]))
+            try:
+                mins_ago = (datetime.now() - last_alert["timestamp"].to_pydatetime().replace(tzinfo=None)).seconds // 60
+                if mins_ago < 5:
+                    feed_status = f"⚠ {last_alert['alert_type'].replace('_',' ')} Detected"
+                    feed_color  = color_for(str(last_alert["alert_type"]))
+            except Exception:
+                pass
 
         st.markdown(f"""
         <div class="glass-card" style="padding:0;overflow:hidden;">
@@ -301,27 +242,44 @@ def tab_monitor(df, vid):
                 <div style="display:flex;align-items:center;gap:8px;">
                     <span style="width:8px;height:8px;border-radius:50%;background:#ef4444;
                           display:inline-block;"></span>
-                    <span style="font-size:0.78rem;color:#cbd5e1;font-weight:500;">Driver Camera Feed</span>
+                    <span style="font-size:0.78rem;color:#cbd5e1;font-weight:500;">Latest Snapshot</span>
                 </div>
                 <span style="font-size:0.7rem;color:#475569;font-family:'JetBrains Mono',monospace;">{now_str}</span>
-            </div>
-            <div style="height:200px;background:#0f172a;display:flex;align-items:center;
-                 justify-content:center;position:relative;">
-                <div style="text-align:center;">
-                    <div style="width:72px;height:72px;border-radius:50%;
-                         border:2px solid {feed_color}44;display:flex;align-items:center;
-                         justify-content:center;margin:0 auto 12px;font-size:2.5rem;">👤</div>
-                    <div style="font-size:0.85rem;color:{feed_color};font-weight:600;">{feed_status}</div>
-                    <div style="font-size:0.7rem;color:#475569;margin-top:4px;">AI analyzing driver behavior</div>
-                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
+        latest_snap = get_latest_snapshot()
+        if latest_snap:
+            try:
+                st.image(Image.open(latest_snap), use_container_width=True)
+                snap_name = os.path.basename(latest_snap)
+                atype_snap = snap_name.split("_")[0].upper()
+                snap_col = color_for(atype_snap)
+                st.markdown(f'<div style="text-align:center;padding:6px 0;">'
+                            f'{badge(atype_snap.replace("_"," "), snap_col)}'
+                            f'<span style="color:#475569;font-size:0.65rem;margin-left:8px;">{feed_status}</span>'
+                            f'</div>', unsafe_allow_html=True)
+            except Exception:
+                st.markdown(f'<div style="height:160px;background:#0f172a;display:flex;align-items:center;'
+                            f'justify-content:center;color:{feed_color};font-size:0.85rem;">{feed_status}</div>',
+                            unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style="height:160px;background:#0f172a;display:flex;align-items:center;
+                 justify-content:center;text-align:center;">
+                <div>
+                    <div style="font-size:2.5rem;margin-bottom:8px;">👤</div>
+                    <div style="font-size:0.85rem;color:{feed_color};font-weight:600;">{feed_status}</div>
+                    <div style="font-size:0.7rem;color:#475569;margin-top:4px;">No snapshots yet</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
     with col_score:
-        score_color = "#10b981" if score>70 else "#f59e0b" if score>40 else "#f43f5e"
+        score_color   = "#10b981" if score>70 else "#f59e0b" if score>40 else "#f43f5e"
         circumference = 326.7
-        offset = circumference - (circumference * score / 100)
+        offset        = circumference - (circumference * score / 100)
         st.markdown(f"""
         <div class="glass-card">
             <div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;
@@ -335,14 +293,10 @@ def tab_monitor(df, vid):
                                 <stop offset="100%" stop-color="#38bdf8"/>
                             </linearGradient>
                         </defs>
-                        <circle cx="60" cy="60" r="52" fill="none"
-                            stroke="rgba(51,65,85,0.5)" stroke-width="8"/>
-                        <circle cx="60" cy="60" r="52" fill="none"
-                            stroke="url(#sg)" stroke-width="8"
-                            stroke-linecap="round"
-                            stroke-dasharray="{circumference}"
-                            stroke-dashoffset="{offset}"
-                            style="transition:stroke-dashoffset 1.5s ease"/>
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(51,65,85,0.5)" stroke-width="8"/>
+                        <circle cx="60" cy="60" r="52" fill="none" stroke="url(#sg)" stroke-width="8"
+                            stroke-linecap="round" stroke-dasharray="{circumference}"
+                            stroke-dashoffset="{offset}" style="transition:stroke-dashoffset 1.5s ease"/>
                     </svg>
                     <div style="position:absolute;inset:0;display:flex;align-items:center;
                          justify-content:center;font-size:1.8rem;font-weight:700;
@@ -355,8 +309,7 @@ def tab_monitor(df, vid):
                     <span style="color:#e2e8f0;font-family:'JetBrains Mono',monospace;">{total}</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;color:#94a3b8;">
-                    <span>Risk Level</span>
-                    <span style="color:{risk_c};font-weight:600;">{risk}</span>
+                    <span>Risk Level</span><span style="color:{risk_c};font-weight:600;">{risk}</span>
                 </div>
                 <div style="display:flex;justify-content:space-between;color:#94a3b8;">
                     <span>Last Updated</span>
@@ -394,15 +347,17 @@ def tab_monitor(df, vid):
             </div>
             """, unsafe_allow_html=True)
 
-# ── Logs Tab ──────────────────────────────────────────────────────────────────
+# ── Logs Tab (FIX #7: pagination) ────────────────────────────────────────────
 def tab_logs(df):
-    st.markdown('<div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;">System Logs</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;'
+                'letter-spacing:0.08em;margin-bottom:12px;">System Logs</div>', unsafe_allow_html=True)
 
     fc1, fc2, fc3 = st.columns([2,1,1])
     with fc1:
-        ft = st.selectbox("Type", ["ALL","DROWSINESS","DISTRACTION","MOBILE_USAGE"], label_visibility="hidden", key="log_ft")
+        ft = st.selectbox("Type", ["ALL","DROWSINESS","DISTRACTION","MOBILE_USAGE"],
+                          label_visibility="hidden", key="log_ft")
     with fc2:
-        min_d = df["timestamp"].min().date() if not df.empty else datetime.now().date()-timedelta(days=30)
+        min_d  = df["timestamp"].min().date() if not df.empty else datetime.now().date()-timedelta(days=30)
         d_from = st.date_input("From", value=min_d, key="log_from", label_visibility="hidden")
     with fc3:
         d_to = st.date_input("To", value=datetime.now().date(), key="log_to", label_visibility="hidden")
@@ -417,32 +372,72 @@ def tab_logs(df):
         pass
 
     c1,c2,c3,c4 = st.columns(4)
-    c1.metric("Total", len(vdf))
-    c2.metric("😴 Drowsy",  len(vdf[vdf["alert_type"]=="DROWSINESS"]))
-    c3.metric("👀 Distract",len(vdf[vdf["alert_type"]=="DISTRACTION"]))
-    c4.metric("📱 Mobile",  len(vdf[vdf["alert_type"]=="MOBILE_USAGE"]))
+    c1.metric("Total",       len(vdf))
+    c2.metric("😴 Drowsy",   len(vdf[vdf["alert_type"]=="DROWSINESS"]))
+    c3.metric("👀 Distract", len(vdf[vdf["alert_type"]=="DISTRACTION"]))
+    c4.metric("📱 Mobile",   len(vdf[vdf["alert_type"]=="MOBILE_USAGE"]))
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     if vdf.empty:
-        st.markdown('<div class="glass-card" style="text-align:center;color:#475569;padding:40px;"><div style="font-size:2rem;margin-bottom:8px;">📋</div>No records found.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="glass-card" style="text-align:center;color:#475569;padding:40px;">'
+                    '<div style="font-size:2rem;margin-bottom:8px;">📋</div>No records found.</div>',
+                    unsafe_allow_html=True)
         return
 
-    st.markdown('<div style="background:rgba(15,23,42,0.8);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;"><div style="display:grid;grid-template-columns:2fr 1.5fr 1fr;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);"><span style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Timestamp</span><span style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Alert Type</span><span style="font-size:0.65rem;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;font-weight:600;">Vehicle</span></div>', unsafe_allow_html=True)
+    # Pagination
+    PAGE_SIZE = 50
+    total_pages = max(1, (len(vdf) - 1) // PAGE_SIZE + 1)
+    if "log_page" not in st.session_state:
+        st.session_state["log_page"] = 1
 
-    for _, row in vdf.head(200).iterrows():
+    pg_col1, pg_col2, pg_col3 = st.columns([1, 2, 1])
+    with pg_col1:
+        if st.button("◀ Prev", key="log_prev", disabled=st.session_state["log_page"] <= 1):
+            st.session_state["log_page"] -= 1
+            st.rerun()
+    with pg_col2:
+        st.markdown(f'<div style="text-align:center;color:#94a3b8;font-size:0.78rem;padding-top:8px;">'
+                    f'Page {st.session_state["log_page"]} of {total_pages} '
+                    f'({len(vdf)} records)</div>', unsafe_allow_html=True)
+    with pg_col3:
+        if st.button("Next ▶", key="log_next", disabled=st.session_state["log_page"] >= total_pages):
+            st.session_state["log_page"] += 1
+            st.rerun()
+
+    page_start = (st.session_state["log_page"] - 1) * PAGE_SIZE
+    page_df    = vdf.iloc[page_start : page_start + PAGE_SIZE]
+
+    st.markdown('<div style="background:rgba(15,23,42,0.8);border:1px solid rgba(255,255,255,0.08);'
+                'border-radius:12px;overflow:hidden;">'
+                '<div style="display:grid;grid-template-columns:2fr 1.5fr 1fr;padding:10px 16px;'
+                'border-bottom:1px solid rgba(255,255,255,0.06);">'
+                '<span style="font-size:0.65rem;color:#64748b;text-transform:uppercase;'
+                'letter-spacing:0.08em;font-weight:600;">Timestamp</span>'
+                '<span style="font-size:0.65rem;color:#64748b;text-transform:uppercase;'
+                'letter-spacing:0.08em;font-weight:600;">Alert Type</span>'
+                '<span style="font-size:0.65rem;color:#64748b;text-transform:uppercase;'
+                'letter-spacing:0.08em;font-weight:600;">Vehicle</span>'
+                '</div>', unsafe_allow_html=True)
+
+    for _, row in page_df.iterrows():
         atype = str(row["alert_type"])
         col   = color_for(atype)
         ts    = row["timestamp"].strftime("%Y-%m-%d %H:%M:%S")
         vid_r = str(row.get("vehicle_id","—"))
-        st.markdown(f'<div class="log-row" style="display:grid;grid-template-columns:2fr 1.5fr 1fr;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04);"><span style="font-size:0.75rem;color:#94a3b8;font-family:\'JetBrains Mono\',monospace;">{ts}</span><span>{badge(atype.replace("_"," "), col)}</span><span style="font-size:0.75rem;color:#64748b;">{vid_r}</span></div>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="log-row" style="display:grid;grid-template-columns:2fr 1.5fr 1fr;'
+            f'padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.04);">'
+            f'<span style="font-size:0.75rem;color:#94a3b8;font-family:\'JetBrains Mono\',monospace;">{ts}</span>'
+            f'<span>{badge(atype.replace("_"," "), col)}</span>'
+            f'<span style="font-size:0.75rem;color:#64748b;">{vid_r}</span>'
+            f'</div>', unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     csv = vdf[["timestamp","alert_type","vehicle_id"]].copy()
     csv["timestamp"] = csv["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
     st.download_button("⬇️ Export CSV", csv.to_csv(index=False).encode(), "alert_log.csv", "text/csv")
-
 
 # ── Snapshots Tab ─────────────────────────────────────────────────────────────
 def tab_snapshots(df):
@@ -462,18 +457,19 @@ def tab_snapshots(df):
         d_to = st.date_input("To", value=datetime.now().date(),
                              key="snap_to", label_visibility="hidden")
 
-    # ── Cloud snapshots (Supabase Storage URLs) ───────────────────────────────
+    # Cloud snapshots
     cloud = df[df["snapshot"].astype(str).str.startswith("http")].copy()
     if ft != "ALL":
         cloud = cloud[cloud["alert_type"] == ft]
     try:
-        ts_c = pd.to_datetime(cloud["timestamp"], errors="coerce", utc=True).dt.tz_convert(None)
+        ts_c  = pd.to_datetime(cloud["timestamp"], errors="coerce", utc=True).dt.tz_convert(None)
         cloud = cloud[(ts_c.dt.date >= d_from) & (ts_c.dt.date <= d_to)]
     except Exception:
         pass
 
     if not cloud.empty:
-        st.markdown(f'<div style="color:#94a3b8;font-size:0.82rem;margin-bottom:12px;">{len(cloud)} snapshots</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="color:#94a3b8;font-size:0.82rem;margin-bottom:12px;">'
+                    f'{len(cloud)} snapshots</div>', unsafe_allow_html=True)
         cols = st.columns(3)
         for i, (_, row) in enumerate(cloud.head(30).iterrows()):
             url   = str(row["snapshot"])
@@ -485,13 +481,16 @@ def tab_snapshots(df):
                 ts = str(row["timestamp"])[:19]
             with cols[i % 3]:
                 st.image(url, use_container_width=True)
-                st.markdown(f'<div style="text-align:center;margin-bottom:12px;">{badge(atype.replace("_"," "),col)}<div style="color:#475569;font-size:0.65rem;margin-top:3px;">{ts}</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="text-align:center;margin-bottom:12px;">'
+                            f'{badge(atype.replace("_"," "),col)}'
+                            f'<div style="color:#475569;font-size:0.65rem;margin-top:3px;">{ts}</div>'
+                            f'</div>', unsafe_allow_html=True)
         return
 
-    # ── Local snapshots fallback ──────────────────────────────────────────────
+    # Local snapshots fallback
     snaps = df[df["snapshot"].astype(str).str.strip() != ""].copy()
     try:
-        ts2 = pd.to_datetime(snaps["timestamp"], errors="coerce", utc=True).dt.tz_convert(None)
+        ts2   = pd.to_datetime(snaps["timestamp"], errors="coerce", utc=True).dt.tz_convert(None)
         snaps = snaps[(ts2.dt.date >= d_from) & (ts2.dt.date <= d_to)]
     except Exception:
         pass
@@ -499,7 +498,6 @@ def tab_snapshots(df):
         snaps = snaps[snaps["alert_type"]==ft]
     snaps = snaps[snaps["snapshot"].apply(lambda p: os.path.exists(str(p)))]
 
-    # Fallback: scan folder
     if snaps.empty:
         files = []
         if os.path.exists(SNAP_DIR):
@@ -514,7 +512,6 @@ def tab_snapshots(df):
             </div>
             """, unsafe_allow_html=True)
             return
-
         cols = st.columns(3)
         for i, fname in enumerate(files[:30]):
             fpath = os.path.join(SNAP_DIR, fname)
@@ -558,8 +555,7 @@ def tab_alerts(df):
     if df.empty:
         st.markdown("""
         <div class="glass-card" style="text-align:center;color:#475569;padding:40px;">
-            <div style="font-size:2.5rem;margin-bottom:8px;">🔔</div>
-            No alerts yet.
+            <div style="font-size:2.5rem;margin-bottom:8px;">🔔</div>No alerts yet.
         </div>
         """, unsafe_allow_html=True)
         return
@@ -599,13 +595,18 @@ def tab_alerts(df):
             </div>
             """, unsafe_allow_html=True)
         with right:
-            if snap and os.path.exists(snap):
+            if snap and snap.startswith("http"):
+                try:
+                    st.image(snap, width=100)
+                except Exception:
+                    pass
+            elif snap and os.path.exists(snap):
                 try:
                     st.image(Image.open(snap), width=100)
                 except Exception:
                     pass
 
-# ── Analytics Tab ─────────────────────────────────────────────────────────────
+# ── Analytics Tab (FIX #6: Plotly charts matching dark theme) ─────────────────
 def tab_analytics(df):
     st.markdown("""
     <div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;
@@ -616,15 +617,26 @@ def tab_analytics(df):
         st.info("No data available yet.")
         return
 
+    PLOTLY_LAYOUT = dict(
+        paper_bgcolor="rgba(15,23,42,0)",
+        plot_bgcolor="rgba(15,23,42,0)",
+        font=dict(color="#94a3b8", family="Outfit, sans-serif", size=11),
+        margin=dict(l=10, r=10, t=30, b=10),
+        xaxis=dict(gridcolor="rgba(255,255,255,0.05)", linecolor="rgba(255,255,255,0.08)"),
+        yaxis=dict(gridcolor="rgba(255,255,255,0.05)", linecolor="rgba(255,255,255,0.08)"),
+        legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor="rgba(255,255,255,0.08)"),
+    )
+    COLOR_MAP = {"DROWSINESS":"#f59e0b","DISTRACTION":"#38bdf8","MOBILE_USAGE":"#f43f5e"}
+
     # Weekly summary
     week_ago = datetime.now() - timedelta(days=7)
     wdf = df[df["timestamp"] >= week_ago]
 
-    c1,c2,c3 = st.columns(3)
+    c1, c2, c3 = st.columns(3)
     for col_w, label, atype, color in [
-        (c1,"Drowsiness","DROWSINESS","#f59e0b"),
-        (c2,"Phone Use","MOBILE_USAGE","#f43f5e"),
-        (c3,"Distraction","DISTRACTION","#38bdf8"),
+        (c1, "Drowsiness",  "DROWSINESS",  "#f59e0b"),
+        (c2, "Phone Use",   "MOBILE_USAGE","#f43f5e"),
+        (c3, "Distraction", "DISTRACTION", "#38bdf8"),
     ]:
         val = len(wdf[wdf["alert_type"]==atype])
         with col_w:
@@ -639,41 +651,57 @@ def tab_analytics(df):
             </div>
             """, unsafe_allow_html=True)
 
-    # Charts
     col_l, col_r = st.columns(2)
+
     with col_l:
-        st.markdown('<div style="font-size:0.75rem;color:#94a3b8;margin-bottom:8px;">Alert Distribution</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.75rem;color:#94a3b8;margin-bottom:8px;">Alert Distribution</div>',
+                    unsafe_allow_html=True)
         counts = df["alert_type"].value_counts().reset_index()
-        counts.columns = ["Type","Count"]
+        counts.columns = ["Type", "Count"]
         if not counts.empty:
-            st.bar_chart(counts.set_index("Type"), height=220)
+            counts["Color"] = counts["Type"].map(COLOR_MAP)
+            fig = px.bar(counts, x="Type", y="Count", color="Type",
+                         color_discrete_map=COLOR_MAP, height=240)
+            fig.update_layout(**PLOTLY_LAYOUT)
+            fig.update_traces(marker_line_width=0)
+            st.plotly_chart(fig, use_container_width=True)
 
     with col_r:
-        st.markdown('<div style="font-size:0.75rem;color:#94a3b8;margin-bottom:8px;">Daily Trend</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.75rem;color:#94a3b8;margin-bottom:8px;">Daily Trend</div>',
+                    unsafe_allow_html=True)
         vdf2 = df.copy()
         vdf2["day"] = vdf2["timestamp"].dt.floor("D")
-        daily = vdf2.groupby(["day","alert_type"]).size().unstack(fill_value=0)
+        daily = vdf2.groupby(["day","alert_type"]).size().reset_index(name="count")
         if not daily.empty:
-            st.line_chart(daily, height=220)
+            fig2 = px.line(daily, x="day", y="count", color="alert_type",
+                           color_discrete_map=COLOR_MAP, height=240)
+            fig2.update_layout(**PLOTLY_LAYOUT)
+            fig2.update_traces(line_width=2)
+            st.plotly_chart(fig2, use_container_width=True)
 
-    # Alerts by hour
-    st.markdown('<div style="font-size:0.75rem;color:#94a3b8;margin:12px 0 8px;">Alerts by Hour of Day</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.75rem;color:#94a3b8;margin:12px 0 8px;">Alerts by Hour of Day</div>',
+                unsafe_allow_html=True)
     vdf3 = df.copy()
     vdf3["hour"] = vdf3["timestamp"].dt.hour
-    hourly = vdf3.groupby(["hour","alert_type"]).size().unstack(fill_value=0)
+    hourly = vdf3.groupby(["hour","alert_type"]).size().reset_index(name="count")
     if not hourly.empty:
-        st.bar_chart(hourly, height=180)
+        fig3 = px.bar(hourly, x="hour", y="count", color="alert_type",
+                      color_discrete_map=COLOR_MAP, barmode="stack", height=200)
+        fig3.update_layout(**PLOTLY_LAYOUT)
+        fig3.update_traces(marker_line_width=0)
+        st.plotly_chart(fig3, use_container_width=True)
 
     # Achievements
-    st.markdown('<div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;letter-spacing:0.08em;margin:16px 0 12px;">Achievements</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;'
+                'letter-spacing:0.08em;margin:16px 0 12px;">Achievements</div>', unsafe_allow_html=True)
     score = max(0, 100 - (len(df[df["alert_type"]=="DROWSINESS"])*8 +
                            len(df[df["alert_type"]=="MOBILE_USAGE"])*12 +
                            len(df[df["alert_type"]=="DISTRACTION"])*5))
     achievements = []
-    if score >= 80: achievements.append(("🏆","Safe Driver","High safety score"))
+    if score >= 80:                                    achievements.append(("🏆","Safe Driver","High safety score"))
     if len(df[df["alert_type"]=="MOBILE_USAGE"]) == 0: achievements.append(("📱","Phone Free","No phone usage"))
-    if len(df[df["alert_type"]=="DISTRACTION"]) == 0: achievements.append(("🎯","Focus Master","No distractions"))
-    if len(df) < 10: achievements.append(("⚡","Alert Aware","Minimal alerts"))
+    if len(df[df["alert_type"]=="DISTRACTION"]) == 0:  achievements.append(("🎯","Focus Master","No distractions"))
+    if len(df) < 10:                                   achievements.append(("⚡","Alert Aware","Minimal alerts"))
 
     if achievements:
         cols = st.columns(min(len(achievements), 4))
@@ -688,14 +716,13 @@ def tab_analytics(df):
                 </div>
                 """, unsafe_allow_html=True)
 
-# ── Emergency Tab ─────────────────────────────────────────────────────────────
+# ── Emergency Tab (FIX #8: removed fake distances) ────────────────────────────
 def tab_emergency():
     st.markdown("""
     <div style="font-size:0.7rem;color:#94a3b8;text-transform:uppercase;
          letter-spacing:0.08em;margin-bottom:12px;">Emergency Services</div>
     """, unsafe_allow_html=True)
 
-    # SOS button
     st.markdown("""
     <div style="background:rgba(15,23,42,0.6);border:1px solid rgba(244,63,94,0.3);
          border-radius:16px;padding:24px;margin-bottom:16px;text-align:center;">
@@ -711,29 +738,27 @@ def tab_emergency():
     """, unsafe_allow_html=True)
 
     if st.button("🚨  EMERGENCY SOS — Call for Help", use_container_width=True, key="sos_btn"):
-        st.error("🚨 SOS ACTIVATED — Emergency services have been notified with your location!")
+        st.error("🚨 SOS ACTIVATED — Emergency services have been notified!")
         st.balloons()
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Emergency contacts
     col_l, col_r = st.columns(2)
     with col_l:
         st.markdown("""
         <div class="glass-card">
             <div style="font-size:0.75rem;font-weight:600;color:#60a5fa;margin-bottom:12px;">
-                🚔 Nearest Police Stations
+                🚔 Police & Traffic
             </div>
         """, unsafe_allow_html=True)
-        for name, dist, phone in [
-            ("Central Police Station","0.8 km","100"),
-            ("North Police District","1.2 km","100"),
-            ("Traffic Control Unit","1.5 km","103"),
+        for name, phone in [
+            ("Police Emergency",    "100"),
+            ("Traffic Control",     "103"),
+            ("Women Helpline",      "1091"),
         ]:
             st.markdown(f"""
             <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
                 <div style="font-size:0.8rem;font-weight:600;color:#93c5fd;">{name}</div>
-                <div style="font-size:0.7rem;color:#475569;margin-top:2px;">{dist} away</div>
                 <a href="tel:{phone}" style="display:inline-block;margin-top:6px;padding:4px 12px;
                    background:rgba(96,165,250,0.15);border:1px solid rgba(96,165,250,0.3);
                    border-radius:6px;color:#60a5fa;font-size:0.7rem;font-weight:600;
@@ -746,18 +771,17 @@ def tab_emergency():
         st.markdown("""
         <div class="glass-card">
             <div style="font-size:0.75rem;font-weight:600;color:#34d399;margin-bottom:12px;">
-                🏥 Nearest Hospitals
+                🏥 Medical & Rescue
             </div>
         """, unsafe_allow_html=True)
-        for name, dist, phone in [
-            ("City Medical Center","0.5 km","102"),
-            ("Emergency Care Hospital","1.1 km","102"),
-            ("Trauma & Emergency Unit","1.8 km","108"),
+        for name, phone in [
+            ("Ambulance",           "102"),
+            ("Trauma & Emergency",  "108"),
+            ("Fire Department",     "101"),
         ]:
             st.markdown(f"""
             <div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
                 <div style="font-size:0.8rem;font-weight:600;color:#6ee7b7;">{name}</div>
-                <div style="font-size:0.7rem;color:#475569;margin-top:2px;">{dist} away</div>
                 <a href="tel:{phone}" style="display:inline-block;margin-top:6px;padding:4px 12px;
                    background:rgba(52,211,153,0.15);border:1px solid rgba(52,211,153,0.3);
                    border-radius:6px;color:#34d399;font-size:0.7rem;font-weight:600;
@@ -766,18 +790,18 @@ def tab_emergency():
             """, unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Helplines
     st.markdown("""
     <div class="glass-card">
         <div style="font-size:0.75rem;font-weight:600;color:#fbbf24;margin-bottom:12px;">
-            📞 Emergency Helplines
+            📞 National Helplines
         </div>
     """, unsafe_allow_html=True)
     for service, desc, number, color in [
-        ("Police Emergency","Immediate police assistance","100","#60a5fa"),
-        ("Ambulance Service","Medical emergency response","102","#34d399"),
-        ("Fire Department","Fire & rescue services","101","#f87171"),
-        ("Road Accident","National highway helpline","1033","#fbbf24"),
+        ("Police Emergency",    "Immediate police assistance",    "100",  "#60a5fa"),
+        ("Ambulance Service",   "Medical emergency response",     "102",  "#34d399"),
+        ("Fire Department",     "Fire & rescue services",         "101",  "#f87171"),
+        ("Road Accident",       "National highway helpline",      "1033", "#fbbf24"),
+        ("Disaster Management", "National disaster response",     "108",  "#a78bfa"),
     ]:
         st.markdown(f"""
         <div style="display:flex;align-items:center;justify-content:space-between;
@@ -786,57 +810,47 @@ def tab_emergency():
                 <div style="font-size:0.82rem;font-weight:600;color:#e2e8f0;">{service}</div>
                 <div style="font-size:0.7rem;color:#475569;margin-top:2px;">{desc}</div>
             </div>
-            <a href="tel:{number}" style="padding:6px 16px;
-               background:{color}22;border:1px solid {color}44;
-               border-radius:8px;color:{color};font-size:0.8rem;font-weight:700;
-               text-decoration:none;">📞 {number}</a>
+            <a href="tel:{number}" style="padding:6px 16px;background:{color}22;
+               border:1px solid {color}44;border-radius:8px;color:{color};
+               font-size:0.8rem;font-weight:700;text-decoration:none;">📞 {number}</a>
         </div>
         """, unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# ── Main render (FIX #4: removed dead stub at top, single render_dashboard) ───
 def render_dashboard():
     inject_css()
 
-    if "logged_in"  not in st.session_state: st.session_state["logged_in"]  = False
-    if "active_tab" not in st.session_state: st.session_state["active_tab"] = "monitor"
+    if "logged_in"     not in st.session_state: st.session_state["logged_in"]     = False
+    if "active_tab"    not in st.session_state: st.session_state["active_tab"]    = "monitor"
+    if "live_refresh"  not in st.session_state: st.session_state["live_refresh"]  = True
 
-    # ── Show login page only ──────────────────────────────────────────────────
     if not st.session_state["logged_in"]:
-        login_page()
+        from login_page import render_login
+        render_login()
         st.stop()
 
-    # ── Dashboard (only reaches here if logged in) ────────────────────────────
     vid         = st.session_state["vehicle_id"]
     driver_name = st.session_state.get("driver_name", "Driver")
     active_tab  = st.session_state.get("active_tab", "monitor")
 
-    # Top bar
+    # Top bar (includes logout + vehicle selector + refresh toggle)
     top_bar(vid, driver_name)
-
-    # Logout button — placed INSIDE top bar area via columns
-    col_space, col_exit = st.columns([10, 1])
-    with col_exit:
-        if st.button("🚪", key="logout_btn", help="Sign Out"):
-            for k in list(st.session_state.keys()):
-                del st.session_state[k]
-            st.rerun()
 
     # Tab navigation
     st.markdown('<div style="padding:4px 16px 0;background:rgba(15,23,42,0.4);">', unsafe_allow_html=True)
     tab_nav(active_tab)
     st.markdown('</div>', unsafe_allow_html=True)
+
+    # Load data
     df = load_alerts(vid)
-    # Ensure timestamp is always proper datetime with no timezone
     if not df.empty and "timestamp" in df.columns:
         df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
         df["timestamp"] = df["timestamp"].dt.tz_convert(None)
         df = df.dropna(subset=["timestamp"])
         df = df.sort_values("timestamp", ascending=False).reset_index(drop=True)
-    if "snapshot" not in df.columns:
-        df["snapshot"] = ""
-    if "vehicle_id" not in df.columns:
-        df["vehicle_id"] = vid
+    if "snapshot"   not in df.columns: df["snapshot"]   = ""
+    if "vehicle_id" not in df.columns: df["vehicle_id"] = vid
 
     # Content
     st.markdown('<div style="padding:16px;">', unsafe_allow_html=True)
@@ -850,7 +864,7 @@ def render_dashboard():
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Auto refresh
-    time.sleep(5)
-    st.rerun()
-
+    # FIX #1: Only auto-refresh when live refresh is ON
+    if st.session_state.get("live_refresh", True):
+        time.sleep(5)
+        st.rerun()

@@ -17,7 +17,19 @@ ALERT_COOLDOWN = 3
 
 
 def get_active_vehicle() -> str:
-    """Read the currently active vehicle ID set from the dashboard."""
+    """
+    Read the currently active vehicle ID.
+    On Streamlit Cloud the JSON file won't persist, so we also check st.session_state.
+    """
+    # Try session state first (works on cloud and locally)
+    try:
+        import streamlit as st
+        vid = st.session_state.get("vehicle_id", "")
+        if vid:
+            return vid
+    except Exception:
+        pass
+    # Fall back to local JSON file
     if os.path.exists(_CONFIG_FILE):
         try:
             with open(_CONFIG_FILE, encoding="utf-8") as f:
