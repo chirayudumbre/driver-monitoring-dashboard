@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Driver Monitor</title>
+
+    <!-- PWA / Home Screen Icon -->
+    <link rel="apple-touch-icon" sizes="180x180"
+          href="https://img.icons8.com/fluency/180/shield.png">
+    <link rel="icon" type="image/png" sizes="192x192"
+          href="https://img.icons8.com/fluency/192/shield.png">
+
+    <!-- PWA Manifest -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI Driver Monitor">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#3B82F6">
+
+    <!-- Instant redirect to Streamlit app -->
+    <meta http-equiv="refresh" content="0; url=https://driver-monitoring-dashboard-fcgrjr2csbfmjrwbzqh59a.streamlit.app">
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0F172A;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+        }
+        .loader {
+            text-align: center;
+        }
+        .icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #3B82F6, #6366F1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 2.5rem;
+            box-shadow: 0 0 40px rgba(59,130,246,0.4);
+        }
+        h1 {
+            color: #F1F5F9;
+            font-size: 1.4rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+        p {
+            color: #64748B;
+            font-size: 0.85rem;
+        }
+        a {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 28px;
+            background: linear-gradient(135deg, #3B82F6, #6366F1);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="loader">
+        <div class="icon">🛡️</div>
+        <h1>AI Driver Monitor</h1>
+        <p>Redirecting to dashboard...</p>
+        <a href="https://driver-monitoring-dashboard-fcgrjr2csbfmjrwbzqh59a.streamlit.app">
+            Open Dashboard →
+        </a>
+    </div>
+
+    <script>
+        // Redirect immediately
+        window.location.href =
+            "https://driver-monitoring-dashboard-fcgrjr2csbfmjrwbzqh59a.streamlit.app";
+    </script>
+</body>
+</html>
