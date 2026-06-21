@@ -17,6 +17,8 @@ if "logged_in" not in st.session_state:
 if st.session_state["logged_in"]:
     from dashboard_main import render_dashboard
     render_dashboard()
+    st.stop()
 else:
     from login_page import render_login
     render_login()
+    st.stop()

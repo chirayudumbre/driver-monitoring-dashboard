@@ -1,0 +1,22 @@
+{
+    "name": "Driver Safety Monitor",
+    "short_name": "DriverSafe",
+    "description": "Real-time driver behaviour monitoring dashboard",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0D1117",
+    "theme_color": "#58A6FF",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "https://img.icons8.com/fluency/192/car.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "https://img.icons8.com/fluency/512/car.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

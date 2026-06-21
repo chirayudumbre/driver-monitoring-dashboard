@@ -1,12 +1,36 @@
+# Environment
 .env
 .venv/
+venv/
+
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# Streamlit secrets (never commit)
+.streamlit/secrets.toml
+
+# Data files (large/sensitive)
 data/snapshots/
 data/alert_log.csv
-runs/
+data/offline_queue.db
+
+# Model files (large binary)
 models/*.pt
 models/*.task
+
+# Detection output
+runs/
 alerts/
 *.jpg
-.streamlit/secrets.toml
+*.jpeg
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Credentials (never commit)
+dashboard/admin_credentials.json

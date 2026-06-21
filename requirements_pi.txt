@@ -1,0 +1,11 @@
+# Raspberry Pi requirements — no heavy ML frameworks
+# Install with: pip install -r requirements_pi.txt
+
+opencv-contrib-python==4.8.1.78
+mediapipe==0.10.9
+requests==2.32.3
+python-dotenv==1.0.1
+numpy==1.26.4
+
+# Optional — only if Pi 4 with 4GB+ RAM
+# ultralytics==8.1.0
