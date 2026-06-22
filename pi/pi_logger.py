@@ -23,7 +23,7 @@ sys.path.insert(0, BASE_DIR)
 
 
 class PiLogger:
-    SAVE_COOLDOWN = 3   # seconds between snapshots per alert type
+    SAVE_COOLDOWN = 5   # seconds between snapshots per alert type
 
     def __init__(self, queue, base_dir: str):
         self._queue       = queue
