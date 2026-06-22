@@ -37,21 +37,21 @@ FACE_BOUNDARY = [10, 338, 297, 332, 284, 251, 389, 356,
 
 class PiDetector:
     # Drowsiness
-    EAR_THRESHOLD   = 0.22    # slightly lower = more sensitive
-    EAR_FRAME_LIMIT = 8       # faster response
+    EAR_THRESHOLD   = 0.22
+    EAR_FRAME_LIMIT = 8
 
-    # Distraction
-    HEAD_THRESHOLD       = 0.30   # ratio threshold
-    DISTRACT_FRAME_LIMIT = 8      # consecutive frames
+    # Distraction — NO face validation needed, just head ratio
+    HEAD_THRESHOLD       = 0.33
+    DISTRACT_FRAME_LIMIT = 6
 
-    # Phone
+    # Phone — use yolov8s for better accuracy on Pi 5
     PHONE_CLASS_ID   = 67
-    PHONE_CONF       = 0.20       # low threshold = more sensitive
-    PHONE_REQ_FRAMES = 4          # fewer frames needed
-    YOLO_SKIP_FRAMES = 2          # check every 2nd frame
+    PHONE_CONF       = 0.20
+    PHONE_REQ_FRAMES = 4
+    YOLO_SKIP_FRAMES = 2
 
-    # Face validation
-    FACE_MARGIN = 0.05            # 5% margin from frame edge
+    # Face validation — only for drowsiness
+    FACE_MARGIN = 0.03
 
     def __init__(self, base_dir: str):
         model_path = os.path.join(base_dir, "models", "face_landmarker.task")
@@ -70,10 +70,14 @@ class PiDetector:
         )
         self._face_detector = vision.FaceLandmarker.create_from_options(opts)
 
-        # ── YOLOv8n for phone detection ───────────────────────────────────────
+        # ── YOLOv8s for better phone detection on Pi 5 ───────────────────────
         from ultralytics import YOLO
-        yolo_path = os.path.join(base_dir, "models", "yolov8n.pt")
+        # Try yolov8s first (more accurate), fall back to yolov8n
+        yolo_s = os.path.join(base_dir, "models", "yolov8s.pt")
+        yolo_n = os.path.join(base_dir, "models", "yolov8n.pt")
+        yolo_path = yolo_s if os.path.exists(yolo_s) else yolo_n
         self._yolo = YOLO(yolo_path)
+        print(f"[AI]  YOLO model: {os.path.basename(yolo_path)}")
 
         # ── State ─────────────────────────────────────────────────────────────
         self._drown_counter    = 0
@@ -164,13 +168,8 @@ class PiDetector:
 
     # ── Distraction ───────────────────────────────────────────────────────────
     def detect_distraction(self, frame):
+        """Detect head turn — works even if face partially visible."""
         distracted = False
-
-        # Only run if face is valid (checked in drowsiness step)
-        if not self._face_valid:
-            self._distract_counter = 0
-            return frame, False
-
         h, w = frame.shape[:2]
         rgb    = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
@@ -181,6 +180,13 @@ class PiDetector:
             nose      = lm[1]
             left_eye  = lm[33]
             right_eye = lm[263]
+
+            eye_width = abs(right_eye.x - left_eye.x)
+
+            # If eyes too close together (partial face) skip
+            if eye_width < 0.05:
+                self._distract_counter = 0
+                return frame, False
 
             ratio = (nose.x - left_eye.x) / (right_eye.x - left_eye.x + 1e-6)
 
