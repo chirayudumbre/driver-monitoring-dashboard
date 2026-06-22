@@ -35,7 +35,8 @@ class PiDetector:
     EAR_FRAME_LIMIT = 15
 
     # Distraction
-    HEAD_THRESHOLD  = 0.35
+    HEAD_THRESHOLD       = 0.28
+    DISTRACT_FRAME_LIMIT = 10   # require 10 consecutive frames before alert
 
     # Phone
     PHONE_CLASS_ID    = 67
@@ -66,10 +67,11 @@ class PiDetector:
         self._yolo = YOLO(yolo_path)
 
         # ── State ─────────────────────────────────────────────────────────────
-        self._drown_counter  = 0
-        self._phone_frames   = 0
-        self._yolo_skip      = 0
-        self._last_phone_det = False   # cached last YOLO result
+        self._drown_counter    = 0
+        self._distract_counter = 0
+        self._phone_frames     = 0
+        self._yolo_skip        = 0
+        self._last_phone_det   = False
 
     # ── Helpers ───────────────────────────────────────────────────────────────
     @staticmethod
@@ -131,10 +133,16 @@ class PiDetector:
             ratio = (nose.x - left_eye.x) / (right_eye.x - left_eye.x + 1e-6)
 
             if ratio < self.HEAD_THRESHOLD or ratio > (1 - self.HEAD_THRESHOLD):
-                distracted = True
-                cv2.putText(frame, "DISTRACTION ALERT!",
-                            (30, 100), cv2.FONT_HERSHEY_SIMPLEX,
-                            1, (0, 165, 255), 2)
+                self._distract_counter += 1
+                if self._distract_counter >= self.DISTRACT_FRAME_LIMIT:
+                    distracted = True
+                    cv2.putText(frame, "DISTRACTION ALERT!",
+                                (30, 100), cv2.FONT_HERSHEY_SIMPLEX,
+                                1, (0, 165, 255), 2)
+            else:
+                self._distract_counter = 0
+        else:
+            self._distract_counter = 0
 
         return frame, distracted
 
