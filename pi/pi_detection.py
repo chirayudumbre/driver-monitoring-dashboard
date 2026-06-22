@@ -20,15 +20,15 @@ class PiDetector:
     # Calibrated from live data:
     # Eyes open EAR: 0.24-0.33  Eyes closed: 0.11-0.17
     # Head straight HEAD: 0.50-0.62  Head turned: <0.35 or >0.70
-    EAR_THRESHOLD        = 0.20   # safely between open(0.24) and closed(0.17)
-    EAR_FRAME_LIMIT      = 4     # ~0.25s at 15fps
-    HEAD_THRESHOLD       = 0.38   # head turned LEFT threshold
-    HEAD_THRESHOLD_HIGH  = 0.72   # head turned RIGHT threshold
-    DISTRACT_FRAME_LIMIT = 5
+    EAR_THRESHOLD        = 0.20
+    EAR_FRAME_LIMIT      = 2     # only 2 frames = ~0.13s
+    HEAD_THRESHOLD       = 0.38
+    HEAD_THRESHOLD_HIGH  = 0.72
+    DISTRACT_FRAME_LIMIT = 2     # only 2 frames
     PHONE_CLASS_ID       = 67
     PHONE_CONF           = 0.20
-    PHONE_REQ_FRAMES     = 3
-    YOLO_SKIP_FRAMES     = 2
+    PHONE_REQ_FRAMES     = 2     # only 2 frames
+    YOLO_SKIP_FRAMES     = 1     # every frame
 
     def __init__(self, base_dir: str):
         model_path = os.path.join(base_dir, "models", "face_landmarker.task")
