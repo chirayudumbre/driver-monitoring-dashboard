@@ -1,14 +1,13 @@
 """
 pi/pi_detection.py
 ==================
-Detection pipeline optimised for Raspberry Pi 4.
+Detection pipeline optimised for Raspberry Pi 5.
 
-Changes vs desktop version:
-  - Single FaceLandmarker instance shared by drowsiness + distraction
-    (saves ~300MB RAM and halves MediaPipe init time)
-  - YOLOv8n instead of YOLOv8s (faster on Pi 4 CPU)
-  - Frame skip: YOLO runs every 3rd frame to keep CPU usage manageable
-  - No pygame (Pi uses GPIO buzzer instead)
+Features:
+  - Face validation before any detection (full face must be in frame)
+  - Single FaceLandmarker shared by drowsiness + distraction
+  - YOLOv8n for phone detection
+  - Frame skip for YOLO to save CPU
 """
 
 import cv2
@@ -28,21 +27,31 @@ from mediapipe.tasks.python import vision
 LEFT_EYE  = [33,  160, 158, 133, 153, 144]
 RIGHT_EYE = [362, 385, 387, 263, 373, 380]
 
+# Face boundary landmarks to check if full face is in frame
+FACE_BOUNDARY = [10, 338, 297, 332, 284, 251, 389, 356,
+                 454, 323, 361, 288, 397, 365, 379, 378,
+                 400, 377, 152, 148, 176, 149, 150, 136,
+                 172, 58,  132, 93,  234, 127, 162, 21,
+                 54,  103, 67,  109]
+
 
 class PiDetector:
     # Drowsiness
-    EAR_THRESHOLD   = 0.25
-    EAR_FRAME_LIMIT = 10    # was 15 — faster response
+    EAR_THRESHOLD   = 0.22    # slightly lower = more sensitive
+    EAR_FRAME_LIMIT = 8       # faster response
 
     # Distraction
-    HEAD_THRESHOLD       = 0.32   # was 0.28 — less strict
-    DISTRACT_FRAME_LIMIT = 6      # was 10 — faster response
+    HEAD_THRESHOLD       = 0.30   # ratio threshold
+    DISTRACT_FRAME_LIMIT = 8      # consecutive frames
 
     # Phone
-    PHONE_CLASS_ID    = 67
-    PHONE_CONF        = 0.25      # was 0.30 — more sensitive
-    PHONE_REQ_FRAMES  = 5         # was 8 — faster response
-    YOLO_SKIP_FRAMES  = 2         # was 3 — check more often
+    PHONE_CLASS_ID   = 67
+    PHONE_CONF       = 0.20       # low threshold = more sensitive
+    PHONE_REQ_FRAMES = 4          # fewer frames needed
+    YOLO_SKIP_FRAMES = 2          # check every 2nd frame
+
+    # Face validation
+    FACE_MARGIN = 0.05            # 5% margin from frame edge
 
     def __init__(self, base_dir: str):
         model_path = os.path.join(base_dir, "models", "face_landmarker.task")
@@ -61,7 +70,7 @@ class PiDetector:
         )
         self._face_detector = vision.FaceLandmarker.create_from_options(opts)
 
-        # ── YOLOv8n — lighter than yolov8s, better for Pi ────────────────────
+        # ── YOLOv8n for phone detection ───────────────────────────────────────
         from ultralytics import YOLO
         yolo_path = os.path.join(base_dir, "models", "yolov8n.pt")
         self._yolo = YOLO(yolo_path)
@@ -72,8 +81,25 @@ class PiDetector:
         self._phone_frames     = 0
         self._yolo_skip        = 0
         self._last_phone_det   = False
+        self._face_valid       = False   # is full face in frame?
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
+    # ── Face validation ───────────────────────────────────────────────────────
+    def _is_face_valid(self, landmarks, w, h) -> bool:
+        """Check if all key face landmarks are well within the frame."""
+        margin_x = int(w * self.FACE_MARGIN)
+        margin_y = int(h * self.FACE_MARGIN)
+
+        for idx in FACE_BOUNDARY:
+            lm = landmarks[idx]
+            px = int(lm.x * w)
+            py = int(lm.y * h)
+            if px < margin_x or px > w - margin_x:
+                return False
+            if py < margin_y or py > h - margin_y:
+                return False
+        return True
+
+    # ── EAR helper ────────────────────────────────────────────────────────────
     @staticmethod
     def _euclidean(p1, p2, w, h):
         return math.dist(
@@ -100,29 +126,55 @@ class PiDetector:
         drowsy = False
 
         if result.face_landmarks:
-            lm  = result.face_landmarks[0]
-            ear = self._ear(lm, w, h)
+            lm = result.face_landmarks[0]
 
-            if ear < self.EAR_THRESHOLD:
-                self._drown_counter += 1
-                if self._drown_counter >= self.EAR_FRAME_LIMIT:
-                    drowsy = True
-                    cv2.putText(frame, "DROWSINESS ALERT",
-                                (30, 60), cv2.FONT_HERSHEY_SIMPLEX,
-                                1, (0, 0, 255), 3)
+            # Validate full face in frame
+            self._face_valid = self._is_face_valid(lm, w, h)
+
+            if self._face_valid:
+                ear = self._ear(lm, w, h)
+
+                if ear < self.EAR_THRESHOLD:
+                    self._drown_counter += 1
+                    if self._drown_counter >= self.EAR_FRAME_LIMIT:
+                        drowsy = True
+                        cv2.putText(frame, "DROWSINESS ALERT",
+                                    (30, 60), cv2.FONT_HERSHEY_SIMPLEX,
+                                    1, (0, 0, 255), 3)
+                else:
+                    self._drown_counter = 0
+
+                # Draw face status
+                cv2.putText(frame, f"EAR:{ear:.2f} Face:OK",
+                            (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5, (0, 255, 0), 1)
             else:
                 self._drown_counter = 0
+                cv2.putText(frame, "Face not fully visible",
+                            (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.5, (0, 165, 255), 1)
         else:
+            self._face_valid = False
             self._drown_counter = 0
+            cv2.putText(frame, "No face detected",
+                        (10, 25), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5, (0, 0, 255), 1)
 
         return frame, drowsy
 
     # ── Distraction ───────────────────────────────────────────────────────────
     def detect_distraction(self, frame):
+        distracted = False
+
+        # Only run if face is valid (checked in drowsiness step)
+        if not self._face_valid:
+            self._distract_counter = 0
+            return frame, False
+
+        h, w = frame.shape[:2]
         rgb    = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
         result = self._face_detector.detect(mp_img)
-        distracted = False
 
         if result.face_landmarks:
             lm        = result.face_landmarks[0]
@@ -146,9 +198,9 @@ class PiDetector:
 
         return frame, distracted
 
-    # ── Mobile phone ─────────────────────────────────────────────────────────
+    # ── Mobile phone ──────────────────────────────────────────────────────────
     def detect_mobile(self, frame):
-        # Run YOLO every YOLO_SKIP_FRAMES to save CPU
+        # Run YOLO every YOLO_SKIP_FRAMES
         self._yolo_skip += 1
         if self._yolo_skip >= self.YOLO_SKIP_FRAMES:
             self._yolo_skip = 0
@@ -167,7 +219,8 @@ class PiDetector:
                         cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 165, 255), 2)
                         cv2.putText(frame, f"Phone {conf:.0%}",
                                     (x1, max(y1 - 8, 10)),
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 165, 255), 2)
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                                    (0, 165, 255), 2)
             self._last_phone_det = phone_found
 
         # Update stability counter
@@ -181,6 +234,6 @@ class PiDetector:
                         (30, 150), cv2.FONT_HERSHEY_SIMPLEX,
                         1.0, (0, 0, 255), 3)
             if self._phone_frames == self.PHONE_REQ_FRAMES:
-                return frame, True   # trigger alert exactly once per event
+                return frame, True
 
         return frame, False
