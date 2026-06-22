@@ -17,9 +17,13 @@ RIGHT_EYE = [362, 385, 387, 263, 373, 380]
 
 class PiDetector:
     # ── Tunable thresholds ────────────────────────────────────────────────────
-    EAR_THRESHOLD        = 0.21   # calibrated for this camera (open=0.274, closed=0.155)
-    EAR_FRAME_LIMIT      = 5
-    HEAD_THRESHOLD       = 0.35
+    # Calibrated from live data:
+    # Eyes open EAR: 0.24-0.33  Eyes closed: 0.11-0.17
+    # Head straight HEAD: 0.50-0.62  Head turned: <0.35 or >0.70
+    EAR_THRESHOLD        = 0.20   # safely between open(0.24) and closed(0.17)
+    EAR_FRAME_LIMIT      = 4     # ~0.25s at 15fps
+    HEAD_THRESHOLD       = 0.38   # head turned LEFT threshold
+    HEAD_THRESHOLD_HIGH  = 0.72   # head turned RIGHT threshold
     DISTRACT_FRAME_LIMIT = 5
     PHONE_CLASS_ID       = 67
     PHONE_CONF           = 0.20
@@ -117,7 +121,7 @@ class PiDetector:
 
             ratio = (nose.x - le.x) / (re.x - le.x + 1e-6)
 
-            if ratio < self.HEAD_THRESHOLD or ratio > (1 - self.HEAD_THRESHOLD):
+            if ratio < self.HEAD_THRESHOLD or ratio > self.HEAD_THRESHOLD_HIGH:
                 self._dist_ctr += 1
                 if self._dist_ctr >= self.DISTRACT_FRAME_LIMIT:
                     distracted = True
