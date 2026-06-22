@@ -97,6 +97,7 @@ def render_admin():
                 if page == "Logout":
                     for key in list(st.session_state.keys()):
                         del st.session_state[key]
+                    st.query_params.clear()
                     st.rerun()
                 else:
                     st.session_state["admin_page"] = page

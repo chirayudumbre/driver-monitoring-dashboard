@@ -387,11 +387,17 @@ def render_login():
                 else:
                     ok = verify_admin(a_user.strip(), a_pass) if CLOUD_AUTH else False
                     if ok:
+                        import hashlib
+                        token = hashlib.md5(f"admin:admin:driver_monitor_2026".encode()).hexdigest()[:12]
                         st.session_state.update({
                             "logged_in":  True,
                             "role":       "admin",
                             "admin_page": "Dashboard",
                         })
+                        st.query_params["role"]  = "admin"
+                        st.query_params["vid"]   = "admin"
+                        st.query_params["name"]  = "Admin"
+                        st.query_params["token"] = token
                         st.rerun()
                     else:
                         st.error("Invalid username or password.")
@@ -442,6 +448,8 @@ def render_login():
 
                     if driver_row:
                         name = driver_row.get("driver_name", vid)
+                        import hashlib
+                        token = hashlib.md5(f"driver:{vid}:driver_monitor_2026".encode()).hexdigest()[:12]
                         st.session_state.update({
                             "logged_in":   True,
                             "role":        "driver",
@@ -449,6 +457,10 @@ def render_login():
                             "driver_name": name,
                             "driver_page": "Dashboard",
                         })
+                        st.query_params["role"]  = "driver"
+                        st.query_params["vid"]   = vid
+                        st.query_params["name"]  = name
+                        st.query_params["token"] = token
                         try:
                             set_active_vehicle(vid)
                         except Exception:
@@ -478,6 +490,8 @@ def render_login():
                     if driver_row:
                         vid  = driver_row.get("vehicle_id", "UNKNOWN") or "UNKNOWN"
                         name = driver_row.get("driver_name", d_uname)
+                        import hashlib
+                        token = hashlib.md5(f"driver:{vid}:driver_monitor_2026".encode()).hexdigest()[:12]
                         st.session_state.update({
                             "logged_in":   True,
                             "role":        "driver",
@@ -485,6 +499,10 @@ def render_login():
                             "driver_name": name,
                             "driver_page": "Dashboard",
                         })
+                        st.query_params["role"]  = "driver"
+                        st.query_params["vid"]   = vid
+                        st.query_params["name"]  = name
+                        st.query_params["token"] = token
                         try:
                             set_active_vehicle(vid)
                         except Exception:

@@ -67,6 +67,7 @@ def render_driver():
                 if page == "Logout":
                     for key in list(st.session_state.keys()):
                         del st.session_state[key]
+                    st.query_params.clear()
                     st.rerun()
                 else:
                     st.session_state["driver_page"] = page
