@@ -91,6 +91,7 @@ class PiDetector:
                 self._drown_ctr += 1
                 if self._drown_ctr >= self.EAR_FRAME_LIMIT:
                     drowsy = True
+                    self._drown_ctr = 0  # reset after firing
                     print()
                     cv2.putText(frame, "DROWSINESS ALERT",
                                 (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 3)
@@ -125,6 +126,7 @@ class PiDetector:
                 self._dist_ctr += 1
                 if self._dist_ctr >= self.DISTRACT_FRAME_LIMIT:
                     distracted = True
+                    self._dist_ctr = 0  # reset after firing
                     print()
                     cv2.putText(frame, "DISTRACTION ALERT",
                                 (20,100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,165,255), 3)
@@ -167,6 +169,7 @@ class PiDetector:
             cv2.putText(frame, "!! MOBILE PHONE !!",
                         (20,150), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 3)
             if self._phone_ctr == self.PHONE_REQ_FRAMES:
+                self._phone_ctr = 0  # reset after firing
                 return frame, True
 
         return frame, False
