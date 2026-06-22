@@ -17,14 +17,14 @@ RIGHT_EYE = [362, 385, 387, 263, 373, 380]
 
 class PiDetector:
     # ── Tunable thresholds ────────────────────────────────────────────────────
-    EAR_THRESHOLD        = 0.27   # eyes-closed threshold (higher = more sensitive)
-    EAR_FRAME_LIMIT      = 5     # frames needed to trigger drowsiness (~0.3s)
-    HEAD_THRESHOLD       = 0.35   # head-turn ratio threshold
-    DISTRACT_FRAME_LIMIT = 5     # frames needed to trigger distraction
+    EAR_THRESHOLD        = 0.21   # calibrated for this camera (open=0.274, closed=0.155)
+    EAR_FRAME_LIMIT      = 5
+    HEAD_THRESHOLD       = 0.35
+    DISTRACT_FRAME_LIMIT = 5
     PHONE_CLASS_ID       = 67
-    PHONE_CONF           = 0.20   # YOLO confidence (lower = more sensitive)
-    PHONE_REQ_FRAMES     = 3     # frames to confirm phone
-    YOLO_SKIP_FRAMES     = 2     # run YOLO every Nth frame
+    PHONE_CONF           = 0.20
+    PHONE_REQ_FRAMES     = 3
+    YOLO_SKIP_FRAMES     = 2
 
     def __init__(self, base_dir: str):
         model_path = os.path.join(base_dir, "models", "face_landmarker.task")
